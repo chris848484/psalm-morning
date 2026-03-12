@@ -11178,6 +11178,23 @@
     document.getElementById('navCounter').textContent = `${currentTab + 1} / 5`;
   }
 
+  // 스와이프 제스처
+  let touchStartX = 0;
+  let touchEndX = 0;
+
+  document.addEventListener('touchstart', e => {
+    touchStartX = e.changedTouches[0].screenX;
+  }, { passive: true });
+
+  document.addEventListener('touchend', e => {
+    touchEndX = e.changedTouches[0].screenX;
+    const diff = touchStartX - touchEndX;
+    if (Math.abs(diff) > 50) { // 50px 이상 스와이프만 인식
+      if (diff > 0) navigate(1);  // 왼쪽으로 스와이프 → 다음
+      else navigate(-1);           // 오른쪽으로 스와이프 → 이전
+    }
+  }, { passive: true });
+
   loadPsalms();
 </script>
 </body>
