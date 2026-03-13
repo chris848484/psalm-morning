@@ -196,6 +196,96 @@
     letter-spacing: 0.3px;
   }
 
+  .verse {
+    cursor: pointer;
+    border-radius: 6px;
+    padding-left: 8px;
+    padding-right: 8px;
+    margin-left: -8px;
+    margin-right: -8px;
+    transition: background 0.2s ease;
+  }
+
+  .verse.highlighted {
+    background: rgba(201, 168, 76, 0.12);
+    border-bottom-color: rgba(201, 168, 76, 0.2) !important;
+  }
+
+  .verse.highlighted .verse-num {
+    color: var(--gold-light);
+  }
+
+  .verse.highlighted .verse-text {
+    color: #fff;
+  }
+
+  /* 복사 플로팅 버튼 */
+  .copy-bar {
+    position: fixed;
+    bottom: -80px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 200;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    background: rgba(18, 24, 32, 0.96);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border);
+    border-radius: 40px;
+    padding: 10px 20px;
+    transition: bottom 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    white-space: nowrap;
+  }
+
+  .copy-bar.visible {
+    bottom: 32px;
+  }
+
+  .copy-bar-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-family: 'Noto Serif KR', serif;
+  }
+
+  .copy-bar-count {
+    font-family: 'Cinzel', serif;
+    font-size: 11px;
+    color: var(--gold);
+    background: rgba(201, 168, 76, 0.15);
+    padding: 2px 8px;
+    border-radius: 10px;
+  }
+
+  .copy-btn {
+    background: var(--gold);
+    color: #0d1117;
+    border: none;
+    font-family: 'Noto Serif KR', serif;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 7px 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .copy-btn:hover { background: var(--gold-light); }
+
+  .clear-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 11px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-family: 'Noto Serif KR', serif;
+    transition: all 0.2s;
+  }
+
+  .clear-btn:hover { border-color: var(--gold); color: var(--gold); }
+
   /* 하단 네비게이션 */
   .nav-btns {
     display: flex;
@@ -366,6 +456,13 @@
 </style>
 </head>
 <body>
+<div class="copy-bar" id="copyBar">
+  <span class="copy-bar-count" id="copyCount">0</span>
+  <span class="copy-bar-label">절 선택됨</span>
+  <button class="clear-btn" onclick="clearSelection()">취소</button>
+  <button class="copy-btn" onclick="copyVerses()">복사</button>
+</div>
+
 <div class="sticky-bar" id="stickyBar">
   <span class="sticky-psalm-num" id="stickyNum"></span>
   <span class="sticky-psalm-title" id="stickyTitle"></span>
@@ -11172,7 +11269,7 @@
       if (!p) return '';
 
       const versesHtml = p.verses.map((v, vi) =>
-        `<div class="verse" style="animation-delay:${vi * 0.03}s">
+        `<div class="verse" style="animation-delay:${vi * 0.03}s" onclick="toggleVerse(this, ${n}, ${v.v}, '${v.t.replace(/'/g, "\\'")}')">
           <span class="verse-num">${v.v}</span>
           <span class="verse-text">${v.t}</span>
         </div>`
@@ -11336,6 +11433,59 @@
       swipeActive = false;
       switchTab(currentTab); // 취소 시 원위치
     }, { passive: true });
+  }
+
+  // 절 선택 관련
+  let selectedVerses = []; // {psalm, verse, text}
+
+  function toggleVerse(el, psalmNum, verseNum, text) {
+    const idx = selectedVerses.findIndex(v => v.psalm === psalmNum && v.verse === verseNum);
+    if (idx === -1) {
+      el.classList.add('highlighted');
+      selectedVerses.push({ psalm: psalmNum, verse: verseNum, text });
+    } else {
+      el.classList.remove('highlighted');
+      selectedVerses.splice(idx, 1);
+    }
+    selectedVerses.sort((a, b) => a.psalm !== b.psalm ? a.psalm - b.psalm : a.verse - b.verse);
+    updateCopyBar();
+  }
+
+  function updateCopyBar() {
+    const bar = document.getElementById('copyBar');
+    const count = document.getElementById('copyCount');
+    count.textContent = selectedVerses.length;
+    if (selectedVerses.length > 0) bar.classList.add('visible');
+    else bar.classList.remove('visible');
+  }
+
+  function clearSelection() {
+    selectedVerses = [];
+    document.querySelectorAll('.verse.highlighted').forEach(el => el.classList.remove('highlighted'));
+    updateCopyBar();
+  }
+
+  function copyVerses() {
+    if (selectedVerses.length === 0) return;
+    const text = selectedVerses
+      .map(v => `(시편 ${v.psalm}:${v.verse}) ${v.text}`)
+      .join('\n');
+    navigator.clipboard.writeText(text).then(() => {
+      const btn = document.querySelector('.copy-btn');
+      btn.textContent = '복사됨 ✓';
+      setTimeout(() => { btn.textContent = '복사'; }, 1500);
+    }).catch(() => {
+      // fallback
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      const btn = document.querySelector('.copy-btn');
+      btn.textContent = '복사됨 ✓';
+      setTimeout(() => { btn.textContent = '복사'; }, 1500);
+    });
   }
 
   loadPsalms();
