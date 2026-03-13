@@ -128,12 +128,7 @@
 
   /* 시편 카드 */
   .psalm-card {
-    display: none;
     animation: fadeUp 0.5s ease both;
-  }
-
-  .psalm-card.active {
-    display: block;
   }
 
   .card-header {
@@ -339,38 +334,25 @@
   #cards {
     overflow: hidden;
     position: relative;
+    touch-action: pan-y;
+    transition: height 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+
+  .cards-track {
+    display: flex;
+    align-items: flex-start;
+    transition: transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    will-change: transform;
+  }
+
+  .cards-track.no-transition {
+    transition: none;
   }
 
   .psalm-card {
-    transition: opacity 0.25s ease, transform 0.25s ease;
-  }
-
-  .psalm-card.slide-out-left {
-    opacity: 0;
-    transform: translateX(-40px);
-  }
-
-  .psalm-card.slide-out-right {
-    opacity: 0;
-    transform: translateX(40px);
-  }
-
-  .psalm-card.slide-in-left {
-    animation: slideInLeft 0.3s ease both;
-  }
-
-  .psalm-card.slide-in-right {
-    animation: slideInRight 0.3s ease both;
-  }
-
-  @keyframes slideInLeft {
-    from { opacity: 0; transform: translateX(40px); }
-    to { opacity: 1; transform: translateX(0); }
-  }
-
-  @keyframes slideInRight {
-    from { opacity: 0; transform: translateX(-40px); }
-    to { opacity: 1; transform: translateX(0); }
+    flex: 0 0 100%;
+    min-width: 100%;
+    display: block !important;
   }
 
   /* 모바일 */
@@ -11197,7 +11179,7 @@
       ).join('');
 
       return `
-        <div class="psalm-card ${i === 0 ? 'active' : ''}" id="card-${i}">
+        <div class="psalm-card" id="card-${i}">
           <div class="card-header">
             <div class="psalm-number">PSALM ${n}</div>
             <h2 class="psalm-title">시편 ${n}편</h2>
@@ -11209,7 +11191,7 @@
 
     app.innerHTML = `
       <div class="tabs">${tabsHtml}</div>
-      <div id="cards">${cardsHtml}</div>
+      <div id="cards"><div class="cards-track" id="cardsTrack">${cardsHtml}</div></div>
       <div class="nav-btns">
         <button class="nav-btn" id="prevBtn" onclick="navigate(-1)" disabled>← 이전</button>
         <span class="nav-counter" id="navCounter">1 / 5</span>
@@ -11222,6 +11204,8 @@
       </div>
     `;
     updateSticky();
+    bindSwipe();
+    setTimeout(() => updateCardsHeight(0), 50);
   }
 
   function changeDay(dir) {
@@ -11236,35 +11220,39 @@
     renderApp();
   }
 
-  function switchTab(idx, dir = 0) {
-    const tabs = document.querySelectorAll('.tab-btn');
-    const cards = document.querySelectorAll('.psalm-card');
-    const currentCard = document.querySelector('.psalm-card.active');
+  function getTrack() { return document.getElementById('cardsTrack'); }
 
-    // 슬라이드 아웃
-    if (currentCard && dir !== 0) {
-      currentCard.classList.add(dir > 0 ? 'slide-out-left' : 'slide-out-right');
+  function setTrackPos(x, animate) {
+    const track = getTrack();
+    if (!track) return;
+    track.classList.toggle('no-transition', !animate);
+    track.style.transform = `translateX(${x}px)`;
+  }
+
+  function updateCardsHeight(idx) {
+    const cardsEl = document.getElementById('cards');
+    const card = document.getElementById('card-' + idx);
+    if (cardsEl && card) {
+      cardsEl.style.height = card.offsetHeight + 'px';
     }
+  }
 
-    setTimeout(() => {
-      tabs.forEach((t, i) => t.classList.toggle('active', i === idx));
-      cards.forEach((c, i) => {
-        c.classList.remove('active', 'slide-out-left', 'slide-out-right', 'slide-in-left', 'slide-in-right');
-        if (i === idx) {
-          c.classList.add('active');
-          if (dir !== 0) c.classList.add(dir > 0 ? 'slide-in-left' : 'slide-in-right');
-        }
-      });
-      currentTab = idx;
-      updateNav();
-      updateSticky();
-    }, dir !== 0 ? 150 : 0);
+  function switchTab(idx) {
+    const tabs = document.querySelectorAll('.tab-btn');
+    tabs.forEach((t, i) => t.classList.toggle('active', i === idx));
+    const w = document.getElementById('cards').offsetWidth;
+    setTrackPos(-idx * w, true);
+    currentTab = idx;
+    updateNav();
+    updateSticky();
+    // 높이 업데이트: 애니메이션 끝난 후 적용
+    setTimeout(() => updateCardsHeight(idx), 360);
   }
 
   function navigate(dir) {
     const newIdx = currentTab + dir;
     if (newIdx < 0 || newIdx > 4) return;
-    switchTab(newIdx, dir);
+    switchTab(newIdx);
   }
 
   function updateSticky() {
@@ -11290,22 +11278,65 @@
     document.getElementById('navCounter').textContent = `${currentTab + 1} / 5`;
   }
 
-  // 스와이프 제스처
+  // 캐러셀 스와이프 - cards 영역에만 바인딩
   let touchStartX = 0;
-  let touchEndX = 0;
+  let touchStartY = 0;
+  let isHorizontalSwipe = false;
+  let dragStarted = false;
 
-  document.addEventListener('touchstart', e => {
-    touchStartX = e.changedTouches[0].screenX;
-  }, { passive: true });
+  function bindSwipe() {
+    const el = document.getElementById('cards');
+    if (!el) return;
 
-  document.addEventListener('touchend', e => {
-    touchEndX = e.changedTouches[0].screenX;
-    const diff = touchStartX - touchEndX;
-    if (Math.abs(diff) > 50) { // 50px 이상 스와이프만 인식
-      if (diff > 0) navigate(1);  // 왼쪽으로 스와이프 → 다음
-      else navigate(-1);           // 오른쪽으로 스와이프 → 이전
-    }
-  }, { passive: true });
+    let swipeActive = false; // 카드 영역에서 시작한 터치인지 추적
+
+    el.addEventListener('touchstart', e => {
+      // 탭 버튼, 네비 버튼에서 시작한 터치는 완전히 무시
+      if (e.target.closest('.tab-btn') || e.target.closest('.nav-btn') || e.target.closest('.date-btn')) return;
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+      isHorizontalSwipe = false;
+      dragStarted = false;
+      swipeActive = true;
+      const track = getTrack();
+      if (track) track.classList.add('no-transition');
+    }, { passive: true });
+
+    el.addEventListener('touchmove', e => {
+      if (!swipeActive) return;
+      const dx = e.touches[0].clientX - touchStartX;
+      const dy = e.touches[0].clientY - touchStartY;
+      if (!dragStarted && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
+        isHorizontalSwipe = Math.abs(dx) > Math.abs(dy);
+        dragStarted = true;
+      }
+      if (!isHorizontalSwipe) return;
+      const w = el.offsetWidth;
+      const base = -currentTab * w;
+      let resistance = 1;
+      if ((currentTab === 0 && dx > 0) || (currentTab === 4 && dx < 0)) resistance = 0.25;
+      setTrackPos(base + dx * resistance, false);
+    }, { passive: true });
+
+    el.addEventListener('touchend', e => {
+      if (!swipeActive || !isHorizontalSwipe) {
+        swipeActive = false;
+        return;
+      }
+      swipeActive = false;
+      const dx = e.changedTouches[0].clientX - touchStartX;
+      const w = el.offsetWidth;
+      const threshold = w * 0.3;
+      if (dx < -threshold && currentTab < 4) switchTab(currentTab + 1);
+      else if (dx > threshold && currentTab > 0) switchTab(currentTab - 1);
+      else switchTab(currentTab);
+    }, { passive: true });
+
+    el.addEventListener('touchcancel', () => {
+      swipeActive = false;
+      switchTab(currentTab); // 취소 시 원위치
+    }, { passive: true });
+  }
 
   loadPsalms();
 </script>
