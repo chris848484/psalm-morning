@@ -219,6 +219,43 @@
     color: #fff;
   }
 
+  /* 폰트 크기 조절 */
+  .font-ctrl {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-bottom: 16px;
+  }
+
+  .font-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .font-btn:hover { border-color: var(--gold); color: var(--gold-light); }
+  .font-btn:disabled { opacity: 0.25; cursor: default; }
+
+  .font-size-label {
+    font-family: 'Cinzel', serif;
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    min-width: 28px;
+    text-align: center;
+  }
+
   /* 복사 플로팅 버튼 */
   .copy-bar {
     position: fixed;
@@ -11287,6 +11324,11 @@
     }).join('');
 
     app.innerHTML = `
+      <div class="font-ctrl">
+        <button class="font-btn" id="fontMinus" onclick="changeFontSize(-1)">−</button>
+        <span class="font-size-label" id="fontLabel">보통</span>
+        <button class="font-btn" id="fontPlus" onclick="changeFontSize(1)">+</button>
+      </div>
       <div class="tabs">${tabsHtml}</div>
       <div id="cards"><div class="cards-track" id="cardsTrack">${cardsHtml}</div></div>
       <div class="nav-btns">
@@ -11302,7 +11344,7 @@
     `;
     updateSticky();
     bindSwipe();
-    setTimeout(() => updateCardsHeight(0), 50);
+    setTimeout(() => { updateCardsHeight(0); applyFontSize(); }, 50);
   }
 
   function changeDay(dir) {
@@ -11433,6 +11475,31 @@
       swipeActive = false;
       switchTab(currentTab); // 취소 시 원위치
     }, { passive: true });
+  }
+
+  // 폰트 크기 조절
+  const FONT_SIZES = [13, 15, 17, 20, 23];
+  const FONT_LABELS = ['작게', '보통', '크게', '더크게', '최대'];
+  let fontIdx = 1; // 기본 '보통'
+
+  function applyFontSize() {
+    document.querySelectorAll('.verse-text').forEach(el => {
+      el.style.fontSize = FONT_SIZES[fontIdx] + 'px';
+    });
+    const label = document.getElementById('fontLabel');
+    if (label) label.textContent = FONT_LABELS[fontIdx];
+    const minus = document.getElementById('fontMinus');
+    const plus = document.getElementById('fontPlus');
+    if (minus) minus.disabled = fontIdx === 0;
+    if (plus) plus.disabled = fontIdx === FONT_SIZES.length - 1;
+    setTimeout(() => updateCardsHeight(currentTab), 50);
+  }
+
+  function changeFontSize(dir) {
+    const newIdx = fontIdx + dir;
+    if (newIdx < 0 || newIdx >= FONT_SIZES.length) return;
+    fontIdx = newIdx;
+    applyFontSize();
   }
 
   // 절 선택 관련
